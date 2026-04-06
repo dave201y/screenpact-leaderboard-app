@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -56,6 +59,22 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        sp: {
+          teal: "hsl(var(--sp-teal))",
+          "teal-bg": "hsl(var(--sp-teal-bg))",
+          coral: "hsl(var(--sp-coral))",
+          "coral-bg": "hsl(var(--sp-coral-bg))",
+          blue: "hsl(var(--sp-blue))",
+          "blue-bg": "hsl(var(--sp-blue-bg))",
+          pink: "hsl(var(--sp-pink))",
+          "pink-bg": "hsl(var(--sp-pink-bg))",
+          amber: "hsl(var(--sp-amber))",
+          "amber-bg": "hsl(var(--sp-amber-bg))",
+          "amber-border": "hsl(var(--sp-amber-border))",
+          green: "hsl(var(--sp-green))",
+          red: "hsl(var(--sp-red))",
+          gold: "hsl(var(--sp-gold))",
         },
       },
       borderRadius: {

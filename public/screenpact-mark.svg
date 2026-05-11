@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="ScreenPact logo">
+  <defs>
+    <linearGradient id="sp-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17495e" />
+      <stop offset="100%" stop-color="#2b7d7a" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#sp-bg)" />
+  <path d="M86 88c0-13 10-23 23-23h47c13 0 23 10 23 23s-10 23-23 23h-35c-4 0-7 3-7 7s3 7 7 7h19c13 0 23 10 23 23s-10 23-23 23H99c-13 0-23-10-23-23" fill="none" stroke="#f7f9fb" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M168 146v26" fill="none" stroke="#f7f9fb" stroke-width="16" stroke-linecap="round" />
+</svg>

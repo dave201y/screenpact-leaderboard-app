@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 7%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+
+    --primary: 252 47% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 250 60% 96%;
+    --secondary-foreground: 252 47% 40%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 53%;
+
+    --accent: 250 60% 96%;
+    --accent-foreground: 252 47% 40%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 87%;
+    --input: 0 0% 87%;
+    --ring: 252 47% 53%;
+
+    --radius: 0.75rem;
+
+    /* ScreenPact custom tokens */
+    --sp-teal: 160 77% 25%;
+    --sp-teal-bg: 160 40% 92%;
+    --sp-coral: 18 66% 36%;
+    --sp-coral-bg: 18 60% 94%;
+    --sp-blue: 213 72% 37%;
+    --sp-blue-bg: 213 60% 94%;
+    --sp-pink: 340 48% 40%;
+    --sp-pink-bg: 340 40% 94%;
+    --sp-amber: 36 84% 28%;
+    --sp-amber-bg: 40 80% 92%;
+    --sp-amber-border: 40 80% 70%;
+    --sp-green: 92 60% 25%;
+    --sp-red: 0 55% 41%;
+    --sp-gold: 36 84% 42%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 6% 7%;
+    --foreground: 0 0% 95%;
+    --card: 240 5% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 5% 12%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 252 47% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 252 20% 18%;
+    --secondary-foreground: 252 40% 80%;
+    --muted: 240 5% 18%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 252 20% 18%;
+    --accent-foreground: 252 40% 80%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 252 47% 60%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+@layer components {
+  .sp-card {
+    @apply bg-card border border-border rounded-xl p-4;
+  }
+  .sp-metric {
+    @apply bg-muted rounded-lg p-3;
+  }
+  .sp-badge {
+    @apply text-xs px-2.5 py-0.5 rounded-full font-medium;
+  }
+  .sp-tab {
+    @apply flex-1 py-2 text-sm font-medium border-none rounded-lg cursor-pointer transition-colors;
+  }
+  .sp-tab-active {
+    @apply bg-card text-foreground border border-border;
+  }
+  .sp-tab-inactive {
+    @apply bg-transparent text-muted-foreground;
+  }
+  .sp-avatar {
+    @apply rounded-full flex items-center justify-center text-sm font-medium shrink-0;
+  }
+  .sp-you-tag {
+    @apply text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium ml-1.5;
+  }
+  .sp-input {
+    @apply w-full py-2.5 px-3.5 text-lg tracking-widest text-center border border-border rounded-lg bg-card text-foreground font-mono;
+  }
+  .sp-btn-primary {
+    @apply w-full py-2.5 text-sm font-medium bg-foreground text-background border-none rounded-lg cursor-pointer;
+  }
+  .sp-btn-secondary {
+    @apply w-full py-2.5 text-sm bg-transparent text-foreground border border-border rounded-lg cursor-pointer;
+  }
+}

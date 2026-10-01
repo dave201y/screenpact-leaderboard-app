@@ -1,0 +1,16 @@
+{
+  "name": "ScreenPact",
+  "short_name": "ScreenPact",
+  "description": "Group screen-time leaderboard and stats",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#6a5acd",
+  "icons": [
+    {
+      "src": "/screenpact-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

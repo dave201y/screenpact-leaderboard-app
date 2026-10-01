@@ -1,0 +1,10 @@
+{
+  "description": "ScreenPact fosters social accountability by allowing small groups to track and compete for reduced screen time, promoting healthier digital habits.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

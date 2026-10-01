@@ -1,0 +1,8 @@
+{
+  "title": "Screenpact Leaderboard",
+  "description": "A social screen-time accountability leaderboard.",
+  "language": "en",
+  "robots": {
+    "index": false
+  }
+}

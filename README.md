@@ -157,3 +157,4 @@ Example payload:
 - Session storage currently uses in-memory store (good for local dev). Use a persistent session store in production.
 - API hardening includes strict CORS allowlist, JSON body size limit, and rate limits for login/sync endpoints.
 - After pulling latest backend code, run updated [server/sql/schema.sql](server/sql/schema.sql) to create `privacy_requests`, `devices`, `device_pairing_codes`, `device_sync_logs`, and related policies.
+<img width="420" height="594" alt="image" src="https://github.com/user-attachments/assets/4aa80f5d-13e5-480e-9334-8b1aef56d782" />

@@ -158,3 +158,9 @@ Example payload:
 - API hardening includes strict CORS allowlist, JSON body size limit, and rate limits for login/sync endpoints.
 - After pulling latest backend code, run updated [server/sql/schema.sql](server/sql/schema.sql) to create `privacy_requests`, `devices`, `device_pairing_codes`, `device_sync_logs`, and related policies.
 <img width="420" height="594" alt="image" src="https://github.com/user-attachments/assets/4aa80f5d-13e5-480e-9334-8b1aef56d782" />
+<img width="453" height="575" alt="image" src="https://github.com/user-attachments/assets/937fba61-a62d-4691-842e-9c12b2604381" />
+<img width="410" height="568" alt="image" src="https://github.com/user-attachments/assets/b795773b-f3d6-452c-a835-e6513fd966b9" />
+<img width="422" height="546" alt="image" src="https://github.com/user-attachments/assets/497fb31f-58c8-4eb3-89c2-9ca9b577ad0f" />
+
+
+

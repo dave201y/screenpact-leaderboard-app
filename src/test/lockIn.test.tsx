@@ -1,10 +1,11 @@
 import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import FigmaApp from "../FigmaApp";
 
 describe("lock in flow", () => {
   it("shows a short lock-in ping when the member taps the action", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ authenticated: true }) }));
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -29,5 +30,6 @@ describe("lock in flow", () => {
 
     root.unmount();
     container.remove();
+    vi.unstubAllGlobals();
   });
 });

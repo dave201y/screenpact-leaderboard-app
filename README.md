@@ -116,6 +116,19 @@ npm run server
 npm run dev
 ```
 
+Open `http://localhost:8443`. The Vite development server proxies `/api` requests to `http://localhost:8787`.
+
+## Authentication
+
+The active web app uses Supabase Auth through the Express API:
+
+1. The frontend checks `GET /api/auth/session`.
+2. Users sign in with `POST /api/auth/login` or create an account with `POST /api/auth/signup`.
+3. Express establishes an HTTP-only `screenpact.sid` session cookie.
+4. The server uses Supabase Auth for account credentials and Supabase Postgres for application data.
+
+The Android collector uses a separate device credential through `X-Device-Token` or `Authorization: Device <token>`. The database stores a SHA-256 hash of the device token, not the raw token.
+
 ## API Overview
 
 ### Application data

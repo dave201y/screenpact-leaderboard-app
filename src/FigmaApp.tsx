@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Check, ChevronRight, Clock3, Copy, Flame, Link, Pencil, Pin, Plus, Settings, Shield, Smartphone, Target, Trophy, User, Users, Wifi } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Check, ChevronRight, Clock3, Copy, Eye, EyeOff, Flame, Link, Pencil, Pin, Plus, Settings, Shield, Smartphone, Target, Trophy, User, Users, Wifi } from "lucide-react";
 import { DEFAULT_GOAL, formatMinutes, validateGroupName } from "./lib";
 import { Badge, Button, Card, Progress, ScreenHeader } from "./ui";
 import SettingsPanel from "./SettingsPanel";
@@ -129,7 +129,7 @@ function Profile({ goal, navigate }: { goal: number; navigate: (screen: Screen) 
 
 function BottomNav({ screen, navigate }: { screen: Screen; navigate: (screen: Screen) => void }) { return <nav className="bottom-nav"><button className={screen === "leaderboard" ? "active" : ""} onClick={() => navigate("leaderboard")}><Users size={19} /><span>Groups</span></button><button className={screen === "stats" ? "active" : ""} onClick={() => navigate("stats")}><Clock3 size={19} /><span>My Stats</span></button><button className={screen === "group" ? "active" : ""} onClick={() => navigate("group")}><Settings size={19} /><span>Group Settings</span></button></nav>; }
 
-export default function FigmaApp() {
+function FigmaShell() {
   const [screen, setScreen] = useState<Screen>("leaderboard");
   const [dark, setDark] = useState(() => localStorage.getItem("sp.darkMode") === "true");
   const [notifications, setNotifications] = useState(() => localStorage.getItem("sp.notifications") !== "false");
@@ -152,4 +152,98 @@ export default function FigmaApp() {
   const handleLockIn = () => { const random = LOCK_IN_PHRASES[Math.floor(Math.random() * LOCK_IN_PHRASES.length)]; setLockInPing(random); };
   const navigate = (next: Screen) => { setScreen(next); window.scrollTo({ top: 0 }); };
   return <div className="app"><div className="phone-shell"><Header navigate={navigate} /><main>{screen === "leaderboard" && <Leaderboard group={activeGroup} pinnedId={pinnedId} onSelect={setActiveId} onPin={setPinnedId} lockInPing={lockInPing} onLockIn={handleLockIn} />}{screen === "stats" && <Stats group={activeGroup} goal={goal} />}{screen === "group" && <GroupSettings group={activeGroup} pinnedId={pinnedId} onSelect={setActiveId} onPin={setPinnedId} onCreate={createGroup} onLeave={leaveGroup} onRename={renameGroup} />}{screen === "profile" && <Profile goal={goal} navigate={navigate} />}{screen === "settings" && <SettingsPanel dark={dark} setDark={setDark} notifications={notifications} setNotifications={setNotifications} goal={goal} setGoal={setGoal} onReset={reset} />}</main><BottomNav screen={screen} navigate={navigate} /></div></div>;
+}
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [checked, setChecked] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/session", { credentials: "include" })
+      .then((response) => response.json())
+      .then((session) => setAuthenticated(Boolean(session.authenticated)))
+      .catch(() => setAuthenticated(false))
+      .finally(() => setChecked(true));
+  }, []);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(mode === "login" ? "/api/auth/login" : "/api/auth/signup", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Authentication failed");
+      setAuthenticated(true);
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!checked) return <div className="auth-page auth-page-loading"><div className="auth-loading" role="status"><span className="auth-spinner" /> Checking your session...</div></div>;
+  if (authenticated) return <>{children}</>;
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="auth-brand-mark" aria-hidden="true"><Clock3 size={19} /></span>
+          <span>ScreenPact</span>
+        </div>
+
+        <div className="auth-heading">
+          <p className="auth-kicker">Your screen-time pact</p>
+          <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+          <p>Sign in to keep your ScreenPact data connected.</p>
+        </div>
+
+        <form className="auth-form" onSubmit={submit}>
+          <div className="auth-field">
+            <label htmlFor="auth-email">Email</label>
+            <input id="auth-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" required />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="auth-password">Password</label>
+            <div className="auth-password-wrap">
+              <input id="auth-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="Enter your password" minLength={6} required />
+              <button className="auth-password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {error && <div className="auth-error" role="alert">{error}</div>}
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading && <span className="auth-spinner" aria-hidden="true" />}
+            {loading ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+        </form>
+
+        <div className="auth-switch">
+          <span>{mode === "login" ? "New to ScreenPact?" : "Already have an account?"}</span>
+          <button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}>{mode === "login" ? "Create an account" : "Sign in"}</button>
+        </div>
+      </div>
+      <p className="auth-footer">Less scrolling. More life.</p>
+    </div>
+  );
+}
+
+export default function FigmaApp() {
+  return <AuthGate><FigmaShell /></AuthGate>;
 }

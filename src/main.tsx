@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import FigmaApp from "./FigmaApp";
+import ScreenPactApp from "./ScreenPactApp";
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
-		<FigmaApp />
+		<ScreenPactApp />
 	</StrictMode>,
 );
 

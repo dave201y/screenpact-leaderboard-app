@@ -44,7 +44,8 @@ Auth header for collector:
    - top N `apps` list
 7. Send `/api/usage/sync`.
 8. Send `/api/devices/:deviceId/sync-heartbeat`.
-9. Repeat on schedule (WorkManager), with retry/backoff on failure.
+9. Persist transient sync failures and expose the next retry time to the app.
+10. Repeat on schedule (WorkManager), with retry/backoff on failure.
 
 ## Data mapping rules
 
@@ -55,8 +56,8 @@ Auth header for collector:
 
 ## Retry and resilience
 
-- Queue sync payloads when offline.
-- Retry with exponential backoff.
+- Queue sync payloads when offline or the API returns a transient failure.
+- Retry with capped exponential backoff through `retryPendingSync`.
 - Keep idempotent behavior by syncing by date.
 
 ## Minimum telemetry to log
@@ -74,5 +75,6 @@ Auth header for collector:
 - [x] Daily summary extraction from UsageStats (native plugin method)
 - [x] `/api/usage/sync` call with device token (native plugin method)
 - [x] heartbeat endpoint call (native plugin method)
+- [x] Persisted pending sync with capped retry/backoff state
 - [ ] WorkManager background retry
 - [ ] basic crash + sync logging

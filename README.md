@@ -2,7 +2,7 @@
 
 ScreenPact is a screen-time accountability app that turns daily device usage into a private, group-friendly leaderboard. It combines a React web experience, an Express API, Supabase persistence, session-based authentication, and an Android UsageStatsManager collector.
 
-> This repository is an active prototype. The Android collector currently supports pairing, permission reporting, manual daily sync, and sync heartbeats. Background WorkManager scheduling, offline queueing, and retry telemetry are not implemented yet.
+> This repository is an active prototype, not a claim of large-scale production usage. It demonstrates production-minded security, validation, authorization, and release checks while the Android collector currently supports pairing, permission reporting, manual daily sync, and persisted retry state. Background WorkManager scheduling and retry telemetry are not implemented yet.
 
 ## Frontend Preview
 
@@ -31,13 +31,12 @@ The core loop is simple:
 
 ## What It Demonstrates
 
-* React and Vite frontend development
-* Express API design with validation, rate limiting, CORS, and session cookies
-* Supabase Auth and Postgres persistence
-* Device pairing with hashed device tokens
-* Android native integration through a Capacitor plugin
-* Daily usage aggregation and leaderboard ranking
-* Vitest component tests and production builds
+* Keeps usage sync and leaderboard flows dependable by rejecting malformed, abusive, and cross-origin requests across 21 Express endpoints with validation, rate limits, error logging, and CORS controls
+* Protects web and mobile access with HTTP-only sessions, Supabase Auth, and revocable device credentials stored as SHA-256 hashes rather than raw tokens
+* Preserves trustworthy daily rankings with 11 Supabase/Postgres tables, relational constraints, row-level security, and conflict-safe one-record-per-user-per-day upserts
+* Limits collection to the data the product needs by converting Android UsageStats into bounded daily summaries and exposing permission and sync status
+* Turns raw usage into actionable progress through daily deltas, rolling averages, personal goals, and persisted leaderboard ranks
+* Catches regressions before release with automated checks for unauthorized access, revoked devices, payload limits, rate limiting, CORS behavior, type safety, linting, and production builds
 
 ## Architecture
 
@@ -101,6 +100,8 @@ OWNER_PASSWORD=optional-owner-password
 ### Create the database schema
 
 Run [server/sql/schema.sql](server/sql/schema.sql) in the Supabase SQL Editor. It creates the application tables, indexes, constraints, and row-level security policies.
+
+Then apply [server/sql/migrations/001_atomic_usage_sync.sql](server/sql/migrations/001_atomic_usage_sync.sql). The API uses this service-role-only PostgreSQL function to commit daily usage, app summaries, leaderboard data, and profile aggregates in one transaction.
 
 ### Start the application
 
@@ -211,7 +212,17 @@ The repository currently includes tests for the basic application render and the
 node scripts/api-smoke-test.mjs
 ```
 
+Authorization boundaries can be tested independently against an isolated mock-mode API:
+
+```bash
+npm run test:api-auth
+```
+
+This check covers unauthenticated data access, invalid device tokens, cross-session device ownership, and login rate limiting without requiring Supabase credentials.
+
 The existing API smoke script expects a production-style CORS rejection for an untrusted origin. Development mode intentionally allows origins for local use, so run that check against a production-configured server.
+
+The atomic sync verification script is [server/sql/tests/atomic_usage_sync.sql](server/sql/tests/atomic_usage_sync.sql). Run it only against a disposable Supabase test database; it rolls back its changes and requires at least one test `auth.users` row.
 
 ## Security Notes
 
@@ -225,11 +236,11 @@ The existing API smoke script expects a production-style CORS rejection for an u
 ## Current Limitations
 
 * Background Android scheduling with WorkManager is not implemented.
-* Offline queueing and exponential retry are not implemented.
+* The Android collector now persists transient sync failures with capped retry state, but it does not yet run retries automatically in the background.
 * Privacy requests are recorded, but export/deletion fulfillment is not implemented.
 * Group membership is currently represented by frontend demo state rather than a complete backend group model.
 * The web UI and API-backed screens are still being consolidated.
 
 ## Project Status
 
-ScreenPact is a learning and portfolio project focused on full-stack integration, device data collection, authentication, and privacy-aware usage summaries. The most valuable next milestones are API authorization tests, idempotent sync retries, production deployment, and validation with real testers.
+ScreenPact is a learning and portfolio project focused on full-stack integration, device data collection, authentication, and privacy-aware usage summaries. Its evidence is implementation and automated validation rather than reported production scale: the repository does not claim large user volume, uptime, latency, or retention results. The most valuable next milestones are offline retry/backoff, production deployment, and validation with real testers. API authorization boundaries are covered by `npm run test:api-auth`.

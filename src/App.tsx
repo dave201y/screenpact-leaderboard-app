@@ -1,1 +1,1 @@
-export { default } from "./FigmaApp";
+export { default } from "./ScreenPactApp";

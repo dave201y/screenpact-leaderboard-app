@@ -25,10 +25,15 @@ This follows the exact order we agreed on, with status tracking.
   - request Usage Access permission on Android
   - call permission endpoint and heartbeat endpoint
   - send daily sync payloads via existing usage sync endpoint
+  - persist transient sync failures with capped retry/backoff state
 - Needed implementation outputs:
   - native permission flow
   - foreground/background sync worker
   - secure token storage
+- Completed in the collector plugin:
+  - persisted pending usage payloads
+  - capped exponential retry timing
+  - `retryPendingSync` bridge method and pending state reporting
 
 ## 4. Build iOS collector with entitlement path
 - Status: Pending

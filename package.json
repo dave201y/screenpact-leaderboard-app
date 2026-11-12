@@ -1,5 +1,5 @@
 {
-  "name": "figma-make-app",
+  "name": "screenpact",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "format": "oxfmt",
     "server": "node server/index.js",
+    "test:api-auth": "node scripts/api-authorization-test.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run"

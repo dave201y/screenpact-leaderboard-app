@@ -16,7 +16,7 @@ Most of the current product gaps show up inside `/app`, especially the Group, Pr
 
 - [x] Open the leaderboard without requiring a password during local demo use.
 - [x] Make the first screen show the active group leaderboard immediately instead of asking the user to choose a group.
-- [x] Apply the Figma visual system across the main app shell.
+- [x] Apply the ScreenPact visual system across the main app shell.
 - [ ] Replace placeholder or browser-prompt interactions with in-app controls.
 - [ ] Add loading, empty, success, and error states to every main tab.
 - [ ] Remove dev-only copy, hardcoded names, and confusing account language from the demo path.
@@ -86,7 +86,7 @@ Most of the current product gaps show up inside `/app`, especially the Group, Pr
 ### Usage sync and device collection
 - `/app -> My stats`, `/app -> Leaderboard`, and backend sync endpoints: Usage sync only accepts summarized daily data. There is no native collector or browser extension that gathers real device/app usage automatically.
 - `/app -> My stats` and `/app -> Profile`: The app does not yet have a real mobile collector, desktop agent, or OS-level integration for top-app tracking.
-- `/app -> Settings` and backend sync endpoints: The batch sync endpoint exists, but there is no end-user sync UI showing pending uploads, retry state, or conflict handling.
+- `/app -> Settings` and backend sync endpoints: Sync writes are idempotent by user and date, but there is no end-user sync UI showing pending uploads, retry state, or conflict handling.
 
 ## Unfinished work
 
@@ -109,7 +109,7 @@ Most of the current product gaps show up inside `/app`, especially the Group, Pr
 
 ### Usage and analytics
 - `/app -> My stats` and backend sync: Build a real usage collector instead of relying on manual or summary-only sync.
-- `/app -> Settings` and backend sync: Add background sync, retry logic, and deduplication for uploads.
+- `/app -> Settings` and backend sync: Add background sync, offline retry/backoff, and end-user status for uploads; duplicate daily writes are already deduplicated by user and date.
 - `/app -> My stats` and `/app -> Leaderboard`: Add better reporting around missing days, partial uploads, and sync failures.
 
 ### Infrastructure and release readiness
@@ -156,4 +156,5 @@ Most of the current product gaps show up inside `/app`, especially the Group, Pr
 
 - The app currently supports the main web shell, auth gate, privacy page, leaderboard views, and backend API basics.
 - The biggest gap is that several flows still stop at UI or summary-only API level instead of being fully end-to-end.
+- Automated API checks now cover unauthorized data access, invalid and revoked device tokens, cross-session device ownership, payload bounds, repeated syncs, and login rate limiting. Production startup now fails fast when required Supabase, origin, or session-secret configuration is missing.
 - The current codebase is good enough for local development, but not yet complete for a multi-user production launch.

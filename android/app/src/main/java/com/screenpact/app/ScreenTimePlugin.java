@@ -25,6 +25,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -47,6 +48,9 @@ public class ScreenTimePlugin extends Plugin {
     private static final String KEY_API_BASE_URL = "api_base_url";
     private static final String KEY_DEVICE_ID = "device_id";
     private static final String KEY_DEVICE_TOKEN = "device_token";
+    private static final String KEY_PENDING_SYNC = "pending_sync";
+    private static final String KEY_PENDING_SYNC_ATTEMPTS = "pending_sync_attempts";
+    private static final String KEY_PENDING_SYNC_RETRY_AT = "pending_sync_retry_at";
     private static final String DEFAULT_API_BASE_URL = "http://10.0.2.2:8787";
 
     private SharedPreferences prefs() {
@@ -80,6 +84,41 @@ public class ScreenTimePlugin extends Plugin {
 
     private void clearPairingInternal() {
         prefs().edit().remove(KEY_DEVICE_ID).remove(KEY_DEVICE_TOKEN).apply();
+    }
+
+    private void clearPendingSync() {
+        prefs().edit()
+            .remove(KEY_PENDING_SYNC)
+            .remove(KEY_PENDING_SYNC_ATTEMPTS)
+            .remove(KEY_PENDING_SYNC_RETRY_AT)
+            .apply();
+    }
+
+    private long retryDelayMs(int attempts) {
+        long delay = 60_000L * (1L << Math.min(attempts, 5));
+        return Math.min(delay, 60L * 60L * 1000L);
+    }
+
+    private boolean isRetryableSyncFailure(Exception error) {
+        if (error instanceof IOException) return true;
+        String message = error.getMessage();
+        if (message == null) return false;
+        return message.contains("(408)")
+            || message.contains("(429)")
+            || message.contains("(500)")
+            || message.contains("(502)")
+            || message.contains("(503)")
+            || message.contains("(504)");
+    }
+
+    private long queuePendingSync(JSONObject payload, int attempts) {
+        long retryAt = System.currentTimeMillis() + retryDelayMs(attempts);
+        prefs().edit()
+            .putString(KEY_PENDING_SYNC, payload.toString())
+            .putInt(KEY_PENDING_SYNC_ATTEMPTS, attempts)
+            .putLong(KEY_PENDING_SYNC_RETRY_AT, retryAt)
+            .apply();
+        return retryAt;
     }
 
     private boolean hasUsageStatsPermission() {
@@ -241,6 +280,8 @@ public class ScreenTimePlugin extends Plugin {
         result.put("deviceId", getDeviceId());
         result.put("isPaired", getDeviceToken() != null);
         result.put("hasUsageAccess", hasUsageStatsPermission());
+        result.put("hasPendingSync", prefs().contains(KEY_PENDING_SYNC));
+        result.put("pendingSyncRetryAt", prefs().getLong(KEY_PENDING_SYNC_RETRY_AT, 0L));
         call.resolve(result);
     }
 
@@ -358,6 +399,44 @@ public class ScreenTimePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void retryPendingSync(PluginCall call) {
+        String pending = prefs().getString(KEY_PENDING_SYNC, null);
+        if (pending == null || pending.isEmpty()) {
+            JSObject result = new JSObject();
+            result.put("ok", true);
+            result.put("pending", false);
+            call.resolve(result);
+            return;
+        }
+
+        long retryAt = prefs().getLong(KEY_PENDING_SYNC_RETRY_AT, 0L);
+        if (retryAt > System.currentTimeMillis()) {
+            call.reject("Retry is scheduled for a later time");
+            return;
+        }
+
+        try {
+            JSONObject response = doRequest("POST", "/api/usage/sync", new JSONObject(pending), true);
+            clearPendingSync();
+
+            JSObject result = new JSObject();
+            result.put("ok", true);
+            result.put("pending", false);
+            result.put("date", response.optString("date", null));
+            call.resolve(result);
+        } catch (Exception ex) {
+            int attempts = prefs().getInt(KEY_PENDING_SYNC_ATTEMPTS, 0) + 1;
+            if (isRetryableSyncFailure(ex)) {
+                long nextRetryAt = queuePendingSync(new JSONObject(pending), attempts);
+                call.reject(ex.getMessage() + "; next retry at " + nextRetryAt);
+                return;
+            }
+            clearPendingSync();
+            call.reject(ex.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void syncTodayUsage(PluginCall call) {
         if (!hasUsageStatsPermission()) {
             call.reject("Usage access is not granted");
@@ -366,6 +445,7 @@ public class ScreenTimePlugin extends Plugin {
 
         try {
             JSONObject payload = buildTodayUsagePayload();
+            payload.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date()));
             JSONObject response = doRequest("POST", "/api/usage/sync", payload, true);
 
             JSObject result = new JSObject();
@@ -375,6 +455,22 @@ public class ScreenTimePlugin extends Plugin {
             result.put("stored", response.optJSONObject("stored"));
             call.resolve(result);
         } catch (Exception ex) {
+            if (isRetryableSyncFailure(ex)) {
+                try {
+                    JSONObject payload = buildTodayUsagePayload();
+                    payload.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date()));
+                    long retryAt = queuePendingSync(payload, 0);
+                    JSObject result = new JSObject();
+                    result.put("ok", false);
+                    result.put("queued", true);
+                    result.put("retryAt", retryAt);
+                    call.resolve(result);
+                    return;
+                } catch (Exception queueError) {
+                    call.reject(queueError.getMessage());
+                    return;
+                }
+            }
             call.reject(ex.getMessage());
         }
     }

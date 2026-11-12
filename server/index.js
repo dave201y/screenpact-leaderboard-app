@@ -18,6 +18,36 @@ const sessionSecret = process.env.SESSION_SECRET || "dev-change-me";
 const bodyLimit = process.env.API_BODY_LIMIT || "100kb";
 const ownerEmail = (process.env.OWNER_EMAIL || "").toLowerCase();
 const ownerPassword = process.env.OWNER_PASSWORD || "";
+const csrfCookieName = "screenpact.csrf";
+
+if (isProduction) {
+  const missingProductionConfig = [
+    ["SUPABASE_URL", process.env.SUPABASE_URL],
+    ["SUPABASE_ANON_KEY", process.env.SUPABASE_ANON_KEY],
+    ["SUPABASE_SERVICE_ROLE_KEY", process.env.SUPABASE_SERVICE_ROLE_KEY],
+    ["FRONTEND_ORIGIN", process.env.FRONTEND_ORIGIN],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (sessionSecret === "dev-change-me" || sessionSecret.length < 32) {
+    missingProductionConfig.push("SESSION_SECRET (at least 32 characters)");
+  }
+
+  if (missingProductionConfig.length) {
+    throw new Error(`Production configuration is incomplete: ${missingProductionConfig.join(", ")}`);
+  }
+}
+
+function createCsrfToken() {
+  return randomBytes(32).toString("hex");
+}
+
+function setCsrfCookie(res, token) {
+  let cookie = `${csrfCookieName}=${encodeURIComponent(token)}; Path=/; SameSite=Lax`;
+  if (isProduction) cookie += "; Secure";
+  res.append("Set-Cookie", cookie);
+}
 
 // ─── REMOVED: never fall back to a hardcoded password. If OWNER_EMAIL or
 // OWNER_PASSWORD are missing from .env, login will simply always fail rather
@@ -198,6 +228,22 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  if (req.path === "/api/auth/session") {
+    req.session.csrfToken = req.session.csrfToken || createCsrfToken();
+    setCsrfCookie(res, req.session.csrfToken);
+  }
+
+  const isStateChanging = !["GET", "HEAD", "OPTIONS"].includes(req.method);
+  const hasSessionUser = Boolean(req.session?.user?.id);
+  const csrfToken = req.headers["x-csrf-token"];
+  if (isStateChanging && hasSessionUser && (typeof csrfToken !== "string" || csrfToken !== req.session.csrfToken)) {
+    return res.status(403).json({ error: "CSRF token missing or invalid" });
+  }
+
+  return next();
+});
+
 // Trust the first proxy hop in production (needed when behind Nginx/Cloudflare
 // so that req.secure is correct and the secure cookie gets set properly).
 if (isProduction) {
@@ -278,122 +324,33 @@ async function storeUsageSummary({ user, syncDate, totalMinutes, topApp, appSumm
     };
   }
 
-  const previousDate = shiftIsoDate(syncDate, -1);
-  const previousUsage = await supabaseAdmin
-    .from("daily_usage")
-    .select("total_minutes")
-    .eq("user_id", user.id)
-    .eq("date", previousDate)
-    .maybeSingle();
-
-  if (previousUsage.error) throw new Error(previousUsage.error.message);
-
-  const deltaMinutes = totalMinutes - (previousUsage.data?.total_minutes || totalMinutes);
-
-  const upsertDaily = await supabaseAdmin
-    .from("daily_usage")
-    .upsert(
-      {
-        user_id: user.id,
-        date: syncDate,
-        total_minutes: Math.round(totalMinutes),
-        delta_minutes: Math.round(deltaMinutes),
-      },
-      { onConflict: "user_id,date" }
-    )
-    .select("user_id, total_minutes")
-    .single();
-
-  if (upsertDaily.error) throw new Error(upsertDaily.error.message);
-
   const normalizedApps = (appSummaries.length ? appSummaries : [topApp])
     .filter((row) => row && typeof row.name === "string")
     .map((row) => ({
-      user_id: user.id,
-      date: syncDate,
-      app_name: row.name.trim(),
-      app_icon: typeof row.icon === "string" && row.icon.trim() ? row.icon : "📱",
+      name: row.name.trim(),
+      icon: typeof row.icon === "string" && row.icon.trim() ? row.icon : "📱",
       minutes: Math.max(0, Math.round(Number(row.minutes) || 0)),
       color: typeof row.color === "string" ? row.color : null,
     }));
 
-  const wipeApps = await supabaseAdmin
-    .from("app_usage")
-    .delete()
-    .eq("user_id", user.id)
-    .eq("date", syncDate);
-
-  if (wipeApps.error) throw new Error(wipeApps.error.message);
-
-  if (normalizedApps.length) {
-    const insertApps = await supabaseAdmin.from("app_usage").insert(normalizedApps);
-    if (insertApps.error) throw new Error(insertApps.error.message);
-  }
-
   const profileSummary = await getProfileSummary(user.id, user.email);
-  const upsertLeaderboard = await supabaseAdmin
-    .from("leaderboard_daily")
-    .upsert(
-      {
-        date: syncDate,
-        user_id: user.id,
-        display_name: profileSummary.displayName,
-        initials: profileSummary.initials,
-        avatar_color: profileSummary.avatarColor,
-        total_minutes: Math.round(totalMinutes),
-        top_app_name: topApp.name.trim(),
-        top_app_icon: typeof topApp.icon === "string" && topApp.icon.trim() ? topApp.icon : "📱",
-        delta_minutes: Math.round(deltaMinutes),
-        is_you: true,
-      },
-      { onConflict: "date,user_id" }
-    );
-
-  if (upsertLeaderboard.error) throw new Error(upsertLeaderboard.error.message);
-
-  const rank = await calculateRankForDate(syncDate, user.id);
-  const avgDailyMinutes = await updateRollingAverage(user.id);
-
-  if (rank !== null) {
-    await supabaseAdmin
-      .from("daily_usage")
-      .update({ rank })
-      .eq("user_id", user.id)
-      .eq("date", syncDate);
-  }
-
-  await supabaseAdmin
-    .from("profiles")
-    .upsert(
-      {
-        id: user.id,
-        display_name: profileSummary.displayName,
-        initials: profileSummary.initials,
-        avatar_color: profileSummary.avatarColor,
-        member_since: "April 2026",
-        groups_count: 1,
-        rank: rank || 0,
-        avg_daily_minutes: avgDailyMinutes || 0,
-      },
-      { onConflict: "id" }
-    );
-
-  return {
-    source: "supabase",
-    synced: true,
-    date: syncDate,
-    stored: {
-      totalMinutes: Math.round(totalMinutes),
-      deltaMinutes: Math.round(deltaMinutes),
-      topApp: {
-        name: topApp.name.trim(),
-        icon: typeof topApp.icon === "string" && topApp.icon.trim() ? topApp.icon : "📱",
-        minutes: Math.max(0, Math.round(Number(topApp.minutes) || 0)),
-      },
-      appsCount: normalizedApps.length,
-      rank,
+  const { data, error } = await supabaseAdmin.rpc("sync_usage_summary", {
+    p_user_id: user.id,
+    p_sync_date: syncDate,
+    p_total_minutes: Math.round(totalMinutes),
+    p_top_app: {
+      name: topApp.name.trim(),
+      icon: typeof topApp.icon === "string" && topApp.icon.trim() ? topApp.icon : "📱",
+      minutes: Math.max(0, Math.round(Number(topApp.minutes) || 0)),
     },
-  };
+    p_apps: normalizedApps,
+    p_display_name: profileSummary.displayName,
+    p_initials: profileSummary.initials,
+    p_avatar_color: profileSummary.avatarColor,
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 async function getProfileSummary(userId, fallbackEmail) {
@@ -551,6 +508,13 @@ function generatePairingCode() {
   return code;
 }
 
+function normalizeGroupName(value) {
+  const name = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  if (!name) return { error: "Group name is required" };
+  if (name.length > 40) return { error: "Group name must be 40 characters or fewer" };
+  return { name };
+}
+
 async function resolveDeviceOwner(req) {
   const tokenDevice = await resolveDeviceFromRequest(req);
   if (tokenDevice?.ownerKey) {
@@ -611,12 +575,14 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
         id: user.id,
         email: user.email || normalizedEmail,
       };
+      req.session.csrfToken = createCsrfToken();
 
       req.session.save((saveErr) => {
         if (saveErr) {
           console.error("[auth] session save failed", saveErr);
           return res.status(500).json({ error: "Session save error" });
         }
+        setCsrfCookie(res, req.session.csrfToken);
         return res.json({ user: req.session.user, mode });
       });
     });
@@ -691,15 +657,70 @@ app.post("/api/auth/signup", loginLimiter, async (req, res) => {
       id: data.user.id,
       email: normalizedEmail,
     };
+    req.session.csrfToken = createCsrfToken();
 
     req.session.save((saveErr) => {
       if (saveErr) {
         console.error("[auth] session save failed", saveErr);
         return res.status(500).json({ error: "Session save error" });
       }
+      setCsrfCookie(res, req.session.csrfToken);
       return res.status(201).json({ user: req.session.user, mode: "account" });
     });
   });
+});
+
+app.post("/api/auth/forgot-password", loginLimiter, async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({ error: "email is required" });
+  }
+
+  if (!supabaseAnon) {
+    return res.status(503).json({ error: "Password recovery requires Supabase auth to be configured" });
+  }
+
+  const redirectTo = process.env.PASSWORD_RESET_REDIRECT_URL || req.get("origin") || `${req.protocol}://${req.get("host")}`;
+  const { error } = await supabaseAnon.auth.resetPasswordForEmail(email, { redirectTo });
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  return res.json({ ok: true });
+});
+
+app.post("/api/auth/reset-password", loginLimiter, async (req, res) => {
+  const { accessToken, refreshToken, password } = req.body || {};
+
+  if (!accessToken || !password) {
+    return res.status(400).json({ error: "recovery session and password are required" });
+  }
+
+  if (String(password).length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+
+  if (!supabaseAnon) {
+    return res.status(503).json({ error: "Password recovery requires Supabase auth to be configured" });
+  }
+
+  const { error: sessionError } = await supabaseAnon.auth.setSession({
+    access_token: String(accessToken),
+    refresh_token: String(refreshToken || ""),
+  });
+
+  if (sessionError) {
+    return res.status(400).json({ error: "This password reset link is invalid or expired" });
+  }
+
+  const { error } = await supabaseAnon.auth.updateUser({ password: String(password) });
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  return res.json({ ok: true });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -707,6 +728,137 @@ app.post("/api/auth/logout", (req, res) => {
     res.clearCookie("screenpact.sid");
     res.json({ ok: true });
   });
+});
+
+app.get("/api/groups", requireAuth, async (req, res) => {
+  if (!supabaseAdmin) return res.json({ source: "mock", groups: [] });
+
+  const { data, error } = await supabaseAdmin
+    .from("group_members")
+    .select("group_id, role, groups(id, name, invite_code, created_by, created_at)")
+    .eq("user_id", req.authUser.id);
+
+  if (error) {
+    const status = error.code === "42P01" || error.code === "PGRST205" ? 503 : 500;
+    return res.status(status).json({ error: status === 503 ? "Groups are not initialized in Supabase. Apply server/sql/migrations/002_groups.sql." : error.message });
+  }
+
+  const groupIds = (data || []).map((row) => row.group_id);
+  const counts = groupIds.length
+    ? await supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)
+    : { data: [], error: null };
+  const memberRows = groupIds.length
+    ? await supabaseAdmin.from("group_members").select("group_id, user_id, role").in("group_id", groupIds)
+    : { data: [], error: null };
+
+  if (counts.error || memberRows.error) {
+    const sourceError = counts.error || memberRows.error;
+    const status = sourceError.code === "42P01" || sourceError.code === "PGRST205" ? 503 : 500;
+    return res.status(status).json({ error: status === 503 ? "Groups are not initialized in Supabase. Apply server/sql/migrations/002_groups.sql." : sourceError.message });
+  }
+
+  const userIds = [...new Set((memberRows.data || []).map((row) => row.user_id))];
+  const profilesResult = userIds.length
+    ? await supabaseAdmin.from("profiles").select("id, display_name, initials, avatar_color").in("id", userIds)
+    : { data: [], error: null };
+  if (profilesResult.error) return res.status(500).json({ error: profilesResult.error.message });
+  const profilesById = new Map((profilesResult.data || []).map((profile) => [profile.id, profile]));
+
+  const memberCounts = new Map();
+  for (const row of counts.data || []) memberCounts.set(row.group_id, (memberCounts.get(row.group_id) || 0) + 1);
+  const membersByGroup = new Map();
+  for (const row of memberRows.data || []) {
+    const profile = profilesById.get(row.user_id);
+    const members = membersByGroup.get(row.group_id) || [];
+    members.push({
+      name: profile?.display_name || "ScreenPact member",
+      initials: profile?.initials || "SP",
+      avatar: profile?.avatar_color || "blue",
+      you: row.user_id === req.authUser.id,
+      role: row.role,
+    });
+    membersByGroup.set(row.group_id, members);
+  }
+
+  return res.json({
+    source: "supabase",
+    groups: (data || []).filter((row) => row.groups).map((row) => ({
+      id: row.groups.id,
+      name: row.groups.name,
+      inviteCode: row.groups.invite_code,
+      createdBy: row.groups.created_by,
+      createdAt: row.groups.created_at,
+      role: row.role,
+      memberCount: memberCounts.get(row.group_id) || 0,
+      members: membersByGroup.get(row.group_id) || [],
+    })),
+  });
+});
+
+app.post("/api/groups", requireAuth, async (req, res) => {
+  const nameResult = normalizeGroupName(req.body?.name);
+  if (nameResult.error) return res.status(400).json({ error: nameResult.error });
+  if (!supabaseAdmin) return res.status(503).json({ error: "Groups require Supabase to be configured" });
+
+  const { data: group, error: groupError } = await supabaseAdmin
+    .from("groups")
+    .insert({ name: nameResult.name, invite_code: generatePairingCode(), created_by: req.authUser.id })
+    .select("id, name, invite_code, created_by, created_at")
+    .single();
+
+  if (groupError || !group) return res.status(500).json({ error: groupError?.message || "Could not create group" });
+
+  const { error: memberError } = await supabaseAdmin.from("group_members").insert({ group_id: group.id, user_id: req.authUser.id, role: "owner" });
+  if (memberError) {
+    await supabaseAdmin.from("groups").delete().eq("id", group.id);
+    return res.status(500).json({ error: memberError.message });
+  }
+
+  return res.status(201).json({ source: "supabase", group: { id: group.id, name: group.name, inviteCode: group.invite_code, createdBy: group.created_by, createdAt: group.created_at, role: "owner", memberCount: 1 } });
+});
+
+app.post("/api/groups/join", requireAuth, async (req, res) => {
+  const inviteCode = typeof req.body?.inviteCode === "string" ? req.body.inviteCode.trim().toUpperCase() : "";
+  if (!inviteCode) return res.status(400).json({ error: "inviteCode is required" });
+  if (!supabaseAdmin) return res.status(503).json({ error: "Groups require Supabase to be configured" });
+
+  const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("id, name, invite_code, created_by, created_at").eq("invite_code", inviteCode).maybeSingle();
+  if (groupError) return res.status(500).json({ error: groupError.message });
+  if (!group) return res.status(404).json({ error: "Group invite code not found" });
+
+  const { error: memberError } = await supabaseAdmin.from("group_members").insert({ group_id: group.id, user_id: req.authUser.id, role: "member" });
+  if (memberError?.code === "23505") return res.status(409).json({ error: "You are already a member of this group" });
+  if (memberError) return res.status(500).json({ error: memberError.message });
+
+  return res.status(201).json({ source: "supabase", group: { id: group.id, name: group.name, inviteCode: group.invite_code, createdBy: group.created_by, createdAt: group.created_at, role: "member" } });
+});
+
+app.patch("/api/groups/:groupId", requireAuth, async (req, res) => {
+  const nameResult = normalizeGroupName(req.body?.name);
+  if (nameResult.error) return res.status(400).json({ error: nameResult.error });
+  if (!supabaseAdmin) return res.status(503).json({ error: "Groups require Supabase to be configured" });
+
+  const { data: membership, error: membershipError } = await supabaseAdmin.from("group_members").select("role").eq("group_id", req.params.groupId).eq("user_id", req.authUser.id).maybeSingle();
+  if (membershipError) return res.status(500).json({ error: membershipError.message });
+  if (!membership) return res.status(404).json({ error: "Group not found" });
+  if (membership.role !== "owner") return res.status(403).json({ error: "Only the group owner can rename it" });
+
+  const { data, error } = await supabaseAdmin.from("groups").update({ name: nameResult.name }).eq("id", req.params.groupId).select("id, name, invite_code, created_by, created_at").single();
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ source: "supabase", group: { id: data.id, name: data.name, inviteCode: data.invite_code, createdBy: data.created_by, createdAt: data.created_at, role: "owner" } });
+});
+
+app.delete("/api/groups/:groupId/membership", requireAuth, async (req, res) => {
+  if (!supabaseAdmin) return res.status(503).json({ error: "Groups require Supabase to be configured" });
+
+  const { data: membership, error: membershipError } = await supabaseAdmin.from("group_members").select("role").eq("group_id", req.params.groupId).eq("user_id", req.authUser.id).maybeSingle();
+  if (membershipError) return res.status(500).json({ error: membershipError.message });
+  if (!membership) return res.status(404).json({ error: "Group membership not found" });
+  if (membership.role === "owner") return res.status(409).json({ error: "The group owner cannot leave the group" });
+
+  const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", req.params.groupId).eq("user_id", req.authUser.id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ source: "supabase", ok: true });
 });
 
 app.get("/api/auth/session", (req, res) => {

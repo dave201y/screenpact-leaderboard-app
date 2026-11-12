@@ -1,7 +1,7 @@
 import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { describe, it, expect, vi } from "vitest";
-import FigmaApp from "../FigmaApp";
+import ScreenPactApp from "../ScreenPactApp";
 
 describe("lock in flow", () => {
   it("shows a short lock-in ping when the member taps the action", async () => {
@@ -11,7 +11,7 @@ describe("lock in flow", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(<FigmaApp />);
+      root.render(<ScreenPactApp />);
     });
 
     const trigger = Array.from(container.querySelectorAll("button")).find((button) =>

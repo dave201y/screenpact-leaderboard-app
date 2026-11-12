@@ -4,10 +4,10 @@
 
 1. Rotate Supabase keys and update deployment secrets.
 2. Confirm `FRONTEND_ORIGIN` contains only trusted app domains.
-3. Confirm API starts with production env values.
+3. Confirm API starts with production env values; startup now rejects missing Supabase, origin, or strong session-secret configuration.
 4. Verify `POST /api/auth/login` rate limit is active.
 5. Verify `POST /api/usage/sync` and `POST /api/usage/sync/batch` rate limits are active.
-6. Verify usage sync accepts summary payload only.
+6. Verify usage sync accepts summary payload only and rejects out-of-range totals.
 7. Verify RLS is enabled and policies are in place.
 8. Verify at least 2 real user accounts can login and sync.
 9. Verify leaderboard updates after usage sync.
